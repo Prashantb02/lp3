@@ -1,0 +1,69 @@
+from typing import List, Optional
+
+def solve_n_queens_with_first(n: int, first_queen_col: int) -> List[List[str]]:
+    """
+    Place the first queen at (0, first_queen_col) and use backtracking
+    to place the remaining n-1 queens. Returns list of valid boards
+    (each board is a list of strings). If no solution, returns [].
+    """
+    # quick input check
+    if not (0 <= first_queen_col < n):
+        raise ValueError("first_queen_col must be between 0 and n-1")
+
+    cols = set()      # occupied columns
+    pos_diags = set() # r + c
+    neg_diags = set() # r - c
+
+    board = [["."] * n for _ in range(n)]
+    results: List[List[str]] = []
+
+    # place the given first queen at row 0
+    cols.add(first_queen_col)
+    pos_diags.add(0 + first_queen_col)
+    neg_diags.add(0 - first_queen_col)
+    board[0][first_queen_col] = "Q"
+
+    def backtrack(r: int):
+        # if we placed queens on all rows, record the board
+        if r == n:
+            results.append(["".join(row) for row in board])
+            return
+
+        for c in range(n):
+            # skip if column or diagonal is under attack
+            if c in cols or (r + c) in pos_diags or (r - c) in neg_diags:
+                continue
+
+            # choose
+            cols.add(c)
+            pos_diags.add(r + c)
+            neg_diags.add(r - c)
+            board[r][c] = "Q"
+
+            # explore
+            backtrack(r + 1)
+
+            # undo (backtrack)
+            cols.remove(c)
+            pos_diags.remove(r + c)
+            neg_diags.remove(r - c)
+            board[r][c] = "."
+
+    # start backtracking from row 1 (row 0 already has the first queen)
+    backtrack(1)
+    return results
+
+
+# Example / driver code
+if __name__ == "__main__":
+    n = 8
+    first_queen_col = 1  # fixed queen at row 0, column 1 (0-based)
+    solutions = solve_n_queens_with_first(n, first_queen_col)
+
+    if not solutions:
+        print("No solution exists with the first queen at that column.")
+    else:
+        # print only the first solution (you can print all if needed)
+        board = solutions[0]
+        for row in board:
+            print(" ".join(row))

@@ -1,0 +1,29 @@
+class Item:
+    def __init__(self, profit, weight):
+        self.profit = profit
+        self.weight = weight
+
+def fractionalKnapsack(W, arr):
+    # sort items by profit/weight ratio (descending)
+    arr.sort(key=lambda x: x.profit / x.weight, reverse=True)
+    
+    finalValue = 0
+    for item in arr:
+        if W >= item.weight:
+            finalValue += item.profit
+            W -= item.weight
+        else:
+            finalValue += item.profit * (W / item.weight)
+            break
+    return finalValue
+
+if __name__ == "__main__":
+    n = int(input("Enter number of items: "))
+    arr = []
+    for i in range(n):
+        p = int(input(f"Enter profit of item {i+1}: "))
+        w = int(input(f"Enter weight of item {i+1}: "))
+        arr.append(Item(p, w))
+    W = int(input("Enter capacity of knapsack: "))
+    print("Maximum value in knapsack:", fractionalKnapsack(W, arr))
+

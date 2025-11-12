@@ -1,0 +1,29 @@
+import matplotlib.pyplot as plt
+
+def f(x):
+    return (x + 3) ** 2          # our function
+
+def df(x):
+    return 2 * (x + 3)           # derivative (slope) of the function
+
+alpha = 0.1                      # learning rate (step size)
+x = 2.0                          # starting point
+iters = 30                       # number of steps
+
+xs, ys = [], []                  # to store points for plotting
+
+for i in range(iters):
+    xs.append(x)
+    ys.append(f(x))
+    x = x - alpha * df(x)        # main formula: gradient descent step
+    print(f"Iter {i+1}: x = {x:.6f}, f(x) = {f(x):.6f}")
+
+print("Approximate minimum x =", x)
+
+
+plt.plot(xs, ys, 'o-')
+plt.title("Gradient Descent: y=(x+3)^2")
+plt.xlabel("x")
+plt.ylabel("y")
+plt.grid(True)
+plt.show()

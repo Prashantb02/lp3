@@ -1,0 +1,72 @@
+# === Simple, correct neural-net churn classifier (Keras) ===
+import pandas as pd
+import numpy as np
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+import tensorflow as tf
+from tensorflow.keras import layers, models, callbacks
+
+# 1) Read dataset
+df = pd.read_csv("Churn_Modelling.csv")   # change path if needed
+
+# 2) Feature / target selection & encoding
+# drop identifier columns we don't want to feed into model
+df = df.drop(columns=['RowNumber','CustomerId','Surname'], errors='ignore')
+
+# create dummies for Geography and Gender (0/1)
+df = pd.concat([df, pd.get_dummies(df['Geography'], prefix='Geo', drop_first=True)], axis=1)
+df['Gender'] = df['Gender'].map({'Female':0, 'Male':1})   # convert gender to numeric
+
+# drop original text columns
+df = df.drop(columns=['Geography'], errors='ignore')
+
+# target and features
+y = df['Exited'].values
+X = df.drop(columns=['Exited']).astype(float)  # ensure numeric dtype for keras
+
+# 2b) Optional: show class balance (small check)
+print("Class distribution (0 = stayed, 1 = left):")
+print(pd.Series(y).value_counts())
+
+# 2c) Train-test split (preserve class proportions)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.25, random_state=42, stratify=y)
+
+# 3) Normalize (fit scaler on train only)
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train)
+X_test  = scaler.transform(X_test)
+
+# 4) Build a simple neural network (points of improvement included)
+# - Input size = number of features
+n_features = X_train.shape[1]
+
+# Model: Input -> Dense(32,relu) -> Dense(16,relu) -> Output(sigmoid)
+model = models.Sequential([
+    layers.Input(shape=(n_features,)),
+    layers.Dense(32, activation='relu'),
+    layers.Dense(16, activation='relu'),
+    layers.Dense(1, activation='sigmoid')
+])
+
+# Compile: binary crossentropy + adam
+model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
+
+# Early stopping to avoid overfitting (improvement)
+es = callbacks.EarlyStopping(monitor='val_loss', patience=6, restore_best_weights=True)
+
+# Train the model
+history = model.fit(X_train, y_train, epochs=50, batch_size=32,
+                    validation_split=0.1, callbacks=[es], verbose=1)
+
+# 5) Evaluate: predict & print accuracy + confusion matrix
+y_prob = model.predict(X_test).ravel()
+y_pred = (y_prob >= 0.5).astype(int)
+
+acc = accuracy_score(y_test, y_pred)
+cm  = confusion_matrix(y_test, y_pred)
+
+print("\nAccuracy:", round(acc,4))
+print("\nConfusion Matrix:\n", cm)
+print("\nClassification Report:\n", classification_report(y_test, y_pred, digits=4))

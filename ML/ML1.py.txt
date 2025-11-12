@@ -1,0 +1,109 @@
+# Minimal corrected Uber fare practical (all 5 tasks)
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.model_selection import train_test_split
+from sklearn.preprocessing import StandardScaler
+from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
+from sklearn import metrics
+
+sns.set()
+
+# 0) Load
+df = pd.read_csv("/content/uber.csv")
+# drop unwanted columns if present
+for c in ["Unnamed: 0","key"]:
+    if c in df.columns: df.drop(columns=c, inplace=True)
+
+# 1) Preprocess: drop NA rows & parse datetime
+df.dropna(how='any', inplace=True)
+df['pickup_datetime'] = pd.to_datetime(df['pickup_datetime'], errors='coerce')
+df.dropna(subset=['pickup_datetime', 'pickup_longitude','pickup_latitude',
+                  'dropoff_longitude','dropoff_latitude','fare_amount'], inplace=True)
+
+# 2) Correct haversine distance function (lat/lon order consistent)
+def haversine_km(lat1, lon1, lat2, lon2):
+    # inputs can be numpy arrays or Series
+    lat1, lon1, lat2, lon2 = map(np.radians, (lat1, lon1, lat2, lon2))
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = np.sin(dlat/2.0)**2 + np.cos(lat1)*np.cos(lat2)*np.sin(dlon/2.0)**2
+    return 2 * np.arcsin(np.sqrt(a)) * 6371
+
+df['Distance'] = haversine_km(df['pickup_latitude'].values,
+                              df['pickup_longitude'].values,
+                              df['dropoff_latitude'].values,
+                              df['dropoff_longitude'].values)
+
+# 3) Identify outliers (IQR) and print counts & examples
+def iqr_outlier_info(s):
+    q1, q3 = s.quantile(0.25), s.quantile(0.75)
+    iqr = q3 - q1
+    lower, upper = q1 - 1.5*iqr, q3 + 1.5*iqr
+    mask = (s < lower) | (s > upper)
+    return mask, lower, upper
+
+for col in ['fare_amount','Distance','passenger_count']:
+    mask, lo, hi = iqr_outlier_info(df[col])
+    print(f"{col}: outliers={mask.sum()}, lower={lo:.3f}, upper={hi:.3f}")
+    if mask.sum()>0:
+        print(" examples:", df.loc[mask, col].sample(min(3,mask.sum())).values)
+
+# 4) Remove unrealistic rows (explain thresholds in report)
+df = df[(df['Distance'] > 0) & (df['Distance'] <= 200)]
+df = df[(df['fare_amount'] >= 0) & (df['fare_amount'] <= 500)]
+df = df[(df['passenger_count'] >= 0) & (df['passenger_count'] <= 6)]
+print("Rows after cleaning:", df.shape[0])
+
+# 5) Feature engineering: time features (optional but useful)
+df['pickup_hour'] = df['pickup_datetime'].dt.hour
+df['day_of_week'] = df['pickup_datetime'].dt.dayofweek
+
+# 6) Correlation check (visual + numeric)
+cols = ['fare_amount','Distance','pickup_hour','day_of_week','passenger_count']
+plt.figure(figsize=(6,4))
+sns.heatmap(df[cols].corr(), annot=True, fmt=".2f", cmap='coolwarm')
+plt.title("Correlation (selected features)")
+plt.show()
+print("Correlation with fare_amount:\n", df[cols].corr()['fare_amount'].drop('fare_amount').round(3))
+
+# 7) Prepare data: choose features (Distance + time + passengers) - easy to explain
+X = df[['Distance','pickup_hour','passenger_count']]
+y = df['fare_amount']
+
+# 8) Train-test split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.30, random_state=42)
+
+# 9) Scale features for Linear Regression (but do NOT scale y)
+scaler = StandardScaler()
+X_train_scaled = scaler.fit_transform(X_train)
+X_test_scaled  = scaler.transform(X_test)
+
+# 10) Linear Regression (on scaled X)
+lr = LinearRegression().fit(X_train_scaled, y_train)
+y_pred_lr = lr.predict(X_test_scaled)
+
+# 11) Random Forest (works without scaling)
+rf = RandomForestRegressor(n_estimators=100, random_state=42, n_jobs=-1).fit(X_train, y_train)
+y_pred_rf = rf.predict(X_test)
+
+# 12) Evaluate on original fare scale: MAE, RMSE, R2
+def print_eval(y_true, y_pred, name):
+    mae = metrics.mean_absolute_error(y_true, y_pred)
+    rmse = np.sqrt(metrics.mean_squared_error(y_true, y_pred))
+    r2 = metrics.r2_score(y_true, y_pred)
+    print(f"{name} -> MAE: {mae:.3f}, RMSE: {rmse:.3f}, R2: {r2:.3f}")
+    return mae, rmse, r2
+
+print_eval(y_test, y_pred_lr, "Linear Regression")
+print_eval(y_test, y_pred_rf, "Random Forest")
+
+# 13) Simple actual vs predicted plots
+plt.figure(figsize=(5,5))
+sns.regplot(x=y_test, y=y_pred_lr, scatter_kws={'s':6}, line_kws={'color':'red'}); plt.title('LR')
+plt.show()
+plt.figure(figsize=(5,5))
+sns.regplot(x=y_test, y=y_pred_rf, scatter_kws={'s':6}, line_kws={'color':'red'}); plt.title('RF')
+plt.show()

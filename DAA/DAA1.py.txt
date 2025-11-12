@@ -1,0 +1,38 @@
+# Program: Fibonacci (Recursive and Non-Recursive with Step Count)
+# Subject: DAA Practical (LP-3)
+
+# Non-Recursive (Iterative)
+def fib_iterative(n):
+    a, b = 0, 1
+    steps = 1            # counts first assignment
+    for i in range(2, n + 1):
+        c = a + b
+        a = b
+        b = c
+        steps += 1       # count one addition per loop
+    return (b if n > 0 else 0), steps
+
+
+# Recursive
+def fib_recursive(n):
+    global steps_rec     # use a global counter
+    steps_rec += 1       # count every call
+    if n <= 1:
+        return n
+    else:
+        return fib_recursive(n - 1) + fib_recursive(n - 2)
+
+
+# --- Main Program ---
+n = int(input("Enter a number: "))
+
+# Iterative call
+fib_i, steps_i = fib_iterative(n)
+print("Iterative Fibonacci:", fib_i)
+print("Steps (Iterative):", steps_i)
+
+# Recursive call
+steps_rec = 0
+fib_r = fib_recursive(n)
+print("Recursive Fibonacci:", fib_r)
+print("Steps (Recursive):", steps_rec)
